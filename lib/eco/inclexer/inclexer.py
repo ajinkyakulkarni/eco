@@ -20,7 +20,7 @@
 # IN THE SOFTWARE.
 
 from grammar_parser.plexer import PriorityLexer
-from grammar_parser.gparser import MagicTerminal, Terminal, IndentationTerminal
+from grammar_parser.gparser import MagicTerminal, Terminal, IndentationTerminal, MultiTerminal
 from incparser.astree import BOS, EOS, TextNode, ImageNode
 from PyQt4.QtGui import QImage
 import re, os
@@ -451,6 +451,7 @@ class IncrementalLexerCF(object):
         self.merge_back(read_nodes, generated_tokens)
 
     def relex(self, node):
+        print("relex", node)
         # find farthest node that has lookahead into node
         # start munching tokens and spit out nodes
         #     if generated node already exists => stop
@@ -476,35 +477,34 @@ class IncrementalLexerCF(object):
         pos = 0  # read tokens
         read = 0 # generated tokens
         current_node = node
-        next_token = self.lexer.get_token_iter(StringWrapper(node))
+        sw = StringWrapper(node, startnode)
+        next_token = self.lexer.get_token_iter(sw)
+
+        i = 0
         while True:
-            token = next_token()
-            if token.source == "":
-                read_nodes.append(current_node)
-                break
-            read += len(token.source)
-            # special case when inserting a newline into a string, the lexer
-            # creates a single token. We need to make sure that that newline
-            # gets lexed into its own token
-            if len(token.source) > 1 and token.source.find("\r") >= 0:
-                l = token.source.split("\r")
-                for e in l:
-                    t = self.lexer.tokenize(e)
-                    generated_tokens.extend(t)
-                    if e is not l[-1]:
-                        newline = self.lexer.tokenize("\r")
-                        generated_tokens.extend(newline)
-            else:
+            try:
+                token = next_token()
+                if token[0] is None:
+                    break
                 generated_tokens.append(token)
-            while read > pos + len(current_node.symbol.name):
-                pos += len(current_node.symbol.name)
-                read_nodes.append(current_node)
-                current_node = current_node.next_term
-                if current_node is startnode:
-                    past_startnode = True
-            if past_startnode and read == pos + len(current_node.symbol.name):
-                read_nodes.append(current_node)
+            except StopIteration:
                 break
+            
+        if not generated_tokens:
+            return False
+
+        cur_node = sw.node
+        if sw.last_node is None:
+            return False
+
+        read_nodes = []
+        while cur_node is not sw.last_node:
+            read_nodes.append(cur_node)
+            cur_node = cur_node.next_term
+        read_nodes.append(sw.last_node)
+
+        print("read_nodes", read_nodes)
+        print("gen  nodes", generated_tokens)
 
         return self.merge_back(read_nodes, generated_tokens)
 
@@ -521,33 +521,27 @@ class IncrementalLexerCF(object):
                 last_node.insert_after(node)
                 any_changes = True
             last_node = node
-            node.symbol.name = t.source
             node.indent = None
-            if node.lookup != t.name:
+            if not isinstance(node.symbol, MagicTerminal):
+                if isinstance(t[0], MultiTerminal) or isinstance(node.symbol, MultiTerminal) or isinstance(t[0], MagicTerminal):
+                    node.symbol = t[0]
+                else:
+                    node.symbol.name = t[0].name
+                if node.lookup != t[1]:
+                    node.mark_changed()
+                    any_changes = True
+                else:
+                    node.mark_version()
+            else:
+                node.symbol = t[0]
                 node.mark_changed()
                 any_changes = True
-            else:
-                node.mark_version()
-            # we need to invalidate the newline if we changed whitespace or
-            # logical nodes that come after it
-            if node.lookup == "<ws>" or node.lookup != t.name:
-                prev = node.prev_term
-                while isinstance(prev.symbol, IndentationTerminal):
-                    prev = prev.prev_term
-                if prev.lookup == "<return>":
-                    prev.mark_changed()
-                    any_changes = True
-                elif isinstance(prev, BOS):
-                    # if there is no return, re-indentation won't be triggered
-                    # in the incremental parser so we have to mark the next
-                    # terminal. possibly only use case: bos <ws> pass DEDENT eos
-                    node.next_term.mark_changed()
-            # XXX this should become neccessary with incparse optimisations turned on
-            if node.lookup == "\\" and node.next_term.lookup == "<return>":
-                node.next_term.mark_changed()
-                any_changes = True
-            node.lookup = t.name
-            node.lookahead = t.lookahead
+            node.lookup = t[1]
+            node.lookahead = t[0].lookahead
+            if isinstance(node.symbol, MultiTerminal):
+                node.symbol.link_children(node)
+            if isinstance(node.symbol, MagicTerminal):
+                node.symbol.ast.magic_backpointer = node
         # delete left over nodes
         while True:
             try:
@@ -579,9 +573,11 @@ class StringWrapper(object):
     # XXX This is just a temprary solution. To do this right we have to alter
     # the lexer to work on (node, index)-tuples
 
-    def __init__(self, startnode):
+    def __init__(self, startnode, relexnode):
         self.node = startnode
+        self.relexnode = relexnode
         self.length = sys.maxint
+        self.last_node = None
 
     def __len__(self):
         return self.length
@@ -593,8 +589,8 @@ class StringWrapper(object):
             node = node.next_term
         if isinstance(node, EOS):
             raise IndexError
-        while index > len(node.symbol.name) - 1:
-            index -= len(node.symbol.name)
+        while index > len(getname(node)) - 1:
+            index -= len(getname(node))
             node = node.next_term
             if node is None:
                 raise IndexError
@@ -602,24 +598,29 @@ class StringWrapper(object):
                 node = node.next_term
             if isinstance(node, EOS):
                 raise IndexError
-        if node.next_term and (isinstance(node.next_term, EOS) or isinstance(node.next_term.symbol, IndentationTerminal) or node.next_term.symbol.name == "\r" or isinstance(node.next_term.symbol, MagicTerminal)):
-            self.length = startindex + len(node.symbol.name[index:])
-        return node.symbol.name[index]
+        if node.next_term and (isinstance(node.next_term, EOS) or isinstance(node.next_term.symbol, IndentationTerminal) or node.next_term.symbol.name == "\r"):# or isinstance(node.next_term.symbol, MagicTerminal)):
+            self.length = startindex + len(getname(node)[index:])
+        return getname(node)[index]
 
     def __getslice__(self, start, stop):
+        #XXX get rid of slice in lexer.py
         if stop <= start:
             return ""
 
-        name = self.node.symbol.name
+        name = getname(self.node)
         if start < len(name) and stop < len(name):
+            self.nodes = [self.node]
             return name[start: stop]
 
         text = []
+        self.nodes = []
         node = self.node
         i = 0
         while i < stop:
-            text.append(node.symbol.name)
-            i += len(node.symbol.name)
+            text.append(getname(node))
+            i += len(getname(node))
+            if i > start:
+                self.nodes.append(node)
             node = node.next_term
             if isinstance(node, EOS):
                 break
@@ -627,7 +628,86 @@ class StringWrapper(object):
                 break
             if node.symbol.name == "\r":
                 break
-            if isinstance(node.symbol, MagicTerminal):
-                break
+            #if isinstance(node.symbol, MagicTerminal):
+            #    break
 
         return "".join(text)[start:stop]
+
+    def make_token(self, start, end, tokentype):
+        node = self.node
+        i = 0
+        text = []
+        lboxes = []
+        past_relexnode = False
+
+        if end == -1:
+            end = sys.maxint
+
+        while i < end:
+            if node is self.relexnode:
+                past_relexnode = True
+            if isinstance(node, EOS):
+                break
+            name = getname(node)
+            text.append(name)
+            i += len(name)
+            if isinstance(node.symbol, MagicTerminal):
+                lboxes.append(node.symbol)
+            if isinstance(node.symbol, MultiTerminal):
+                for e in node.symbol.name:
+                    if isinstance(e.symbol, MagicTerminal):
+                        lboxes.append(e.symbol)
+            node = node.next_term
+
+        self.last_node = node.prev_term
+
+        tokenname = "".join(text)[start:end]
+        tsplit = re.split("([\r\x80])", tokenname)
+
+        tsplit = [x for x in tsplit if x != ''] # clear empty strings
+
+        if len(tsplit) > 1:
+            # replace lboxes
+            newsplit = []
+            for t in tsplit:
+                if t == "\x80":
+                    lb = lboxes.pop(0)
+                    tn = TextNode(lb)
+                    lb.ast.magic_backpointer = tn
+                    newsplit.append(tn)
+                    continue
+                newsplit.append(TextNode(Terminal(t)))
+            return MultiTerminal(newsplit)
+        else:
+            if tsplit[0] == "\x80":
+                # XXX should we stop here? not if \x80 comes from a former
+                # multitoken, but is split up now -> test
+                return lboxes[0]
+            t = Terminal("".join(tsplit))
+            if self.last_node.symbol == t and self.last_node.lookup == tokentype:
+                if past_relexnode:
+                    self.last_node = self.last_node.prev_term
+                    return None
+            return t
+
+def getname(node):
+    if isinstance(node.symbol, MagicTerminal):
+        return "\x80"
+    if isinstance(node.symbol, MultiTerminal):
+        l = []
+        for x in node.symbol.name:
+            if isinstance(x.symbol, MagicTerminal):
+                l.append("\x80")
+            else:
+                l.append(x.symbol.name)
+        return "".join(l)
+    return node.symbol.name
+
+def lbox_finder(nodes):
+    for n in nodes:
+        if isinstance(n.symbol, MagicTerminal):
+            yield n.symbol
+        if isinstance(n.symbol.name, list): # multinode -> continue inside
+            for m in n.symbol.name:
+                if isinstance(m, MagicTerminal):
+                    yield m
