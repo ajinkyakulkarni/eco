@@ -298,7 +298,34 @@ class Node(object):
                 return
 
     def insert_after(self, node):
-        self.parent.insert_after_node(self, node)
+        if isinstance(self.parent, MultiTerminal):
+            for i in xrange(len(self.parent.name)):
+                if self.parent.name[i] is self:
+                    self.parent.name.insert(i+1, node)
+                    node.parent = self.parent
+        else:
+            self.parent.insert_after_node(self, node)
+
+    def remove(self):
+        if isinstance(self.parent, MultiTerminal):
+            for i in range(len(self.parent.name)):
+                if self.parent.name[i] is self:
+                    self.parent.name.pop(i)
+                    return
+        else:
+            self.parent.remove_child(self)
+
+    def replace(self, node):
+        # XXX non optimal version
+        self.insert_after(node)
+        self.remove()
+
+    def isempty(self):
+        if isinstance(self.symbol, MultiTerminal):
+            return self.symbol.name == []
+
+    def ismultichild(self):
+        return isinstance(self.parent, MultiTerminal)
 
     def insert_after_node(self, node, newnode):
         i = 0
@@ -462,6 +489,8 @@ class TextNode(Node):
         self.log = {}
         self.version = 0
         self.indent = None
+        if isinstance(symbol, MultiTerminal):
+            symbol.pnode = self
 
     def prev_terminal(self):
         if self.prev_term:

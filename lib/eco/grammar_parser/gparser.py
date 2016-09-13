@@ -68,6 +68,8 @@ class Terminal(Symbol):
 class MultiTerminal(Terminal):
     def __init__(self, name=""):
         self.name = name
+        for n in name:
+            n.parent = self
         self.folding = None
 
     def link_children(self, parent):
