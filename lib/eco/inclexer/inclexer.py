@@ -497,11 +497,11 @@ class IncrementalLexerCF(object):
                 toks.append(token[:3])
                 tokenslength += len(token[0])
                 for r in token[3]:
-                    if not read or r is not read[-1]: # skip partially read from previous tokens
+                    if not read or r is not read[-1]: # skip already read nodes from previous tokens
                         read.append(r)
                         readlength += len(getname(r))
                 if tokenslength == readlength:
-                    # if all gen tokens match they read tokens we have a pair
+                    # if new generated tokens match the read tokens, we have a pair
                     pairs.append((toks, read))
                     toks = []
                     read = []
@@ -530,7 +530,7 @@ class IncrementalLexerCF(object):
         for n in nodes:
             if isinstance(n.symbol, MultiTerminal):
                 # since we are removing elements from the original list during
-                # iteration we need to create a copy to no skip anything
+                # iteration we need to create a copy to not skip anything
                 for x in list(n.symbol.name):
                     yield x
             else:
