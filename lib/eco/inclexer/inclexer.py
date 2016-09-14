@@ -615,12 +615,8 @@ class IncrementalLexerCF(object):
                         read.remove()
                         self.remove_check(read)
                         lastread.insert_after(read)
-                    else:
-                        pass
                 else:
-                    if read.ismultichild() and current_mt is read.parent.pnode:
-                        pass # multi -> same multi
-                    else:
+                    if not read.ismultichild() or current_mt is not read.parent.pnode:
                         read.remove()
                         self.remove_check(read)
                         if current_mt.isempty():
