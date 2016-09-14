@@ -517,14 +517,14 @@ class IncrementalLexerCF(object):
     def iter_gen(self, tokens):
         for t in tokens:
             if len(t[0]) > 1 and re.search("[\r\x80]", t[0]):
-                yield ("new mt", t[1], t[2]), True
+                yield ("new mt", t[1], t[2])
                 for x in re.split("([\r\x80])", t[0]):
-                    yield (x, t[1], t[2]), True
-                yield ("finish mt", None, None), False
+                    yield (x, t[1], t[2])
+                yield ("finish mt", None, None)
             else:
-                yield t, False
+                yield t
         while True:
-            yield None, False
+            yield None
 
     def iter_read(self, nodes):
         for n in nodes:
@@ -532,11 +532,11 @@ class IncrementalLexerCF(object):
                 # since we are removing elements from the original list during
                 # iteration we need to create a copy to no skip anything
                 for x in list(n.symbol.name):
-                    yield x, n
+                    yield x
             else:
-                yield n, None
+                yield n
         while True:
-            yield None, None
+            yield None
 
     def remove_check(self, node):
         if isinstance(node.parent, MultiTerminal):
@@ -549,12 +549,8 @@ class IncrementalLexerCF(object):
         it_gen = self.iter_gen(tokens)
         it_read = self.iter_read(read)
 
-        gen, multimode = it_gen.next()
-        read, rparent = it_read.next()
-        if multimode:
-            read_before_multi = read
-        else:
-            read_before_multi = None
+        gen = it_gen.next()
+        read = it_read.next()
 
         totalr = 0
         totalg = 0
@@ -578,12 +574,12 @@ class IncrementalLexerCF(object):
                     lastread.insert_after(current_mt)
                 current_mt.lookup = gen[1]
                 current_mt.lookahead = gen[2]
-                gen, multimode = it_gen.next()
+                gen = it_gen.next()
                 continue
             elif gen[0] == "finish mt":
                 reused.add(current_mt)
                 lastread = current_mt
-                gen, multimode = it_gen.next()
+                gen = it_gen.next()
                 current_mt = None
                 continue
             else:
@@ -599,12 +595,12 @@ class IncrementalLexerCF(object):
                     lastread.insert_after(new)
                 lastread = new
                 totalg += lengen
-                gen, multimode = it_gen.next()
+                gen = it_gen.next()
             elif totalr + getlength(read) <= totalg:            # DELETE OLD
                 read.remove()
                 self.remove_check(read)
                 totalr += getlength(read)
-                read, rparent = it_read.next()
+                read = it_read.next()
             else:                                               # UPDATE
                 totalr += getlength(read)
                 totalg += lengen
@@ -633,19 +629,8 @@ class IncrementalLexerCF(object):
                         else:
                             lastread.insert_after(read)
                 lastread = read
-                read, rparent = it_read.next()
-                gen, multimode = it_gen.next()
-
-            if multimode and not read_before_multi:
-                read_before_multi = read # needed to insert MT at right position
-
-            if multimode is False and multilist:
-                mt = TextNode(MultiTerminal(multilist))
-                mt.lookup = multilist[0].lookup
-                read_before_multi.prev_term.insert_after(mt)
-                read_before_multi = None
-                multilist = []
-                lastread = mt
+                read = it_read.next()
+                gen = it_gen.next()
 
     def merge_back(self, read_nodes, generated_tokens):
         any_changes = False
