@@ -585,7 +585,9 @@ class IncrementalLexerCF(object):
             else:
                 lengen = len(gen[0])
 
-            if totalr >= totalg + lengen:                       # INSERT NEW
+            if totalr >= totalg + lengen:
+                # One node has been split into multiple nodes. Insert all
+                # remaining nodes until the lengths add up again.
                 new = TextNode(Terminal(gen[0]))
                 new.lookup = gen[1]
                 new.lookahead = gen[2]
@@ -596,12 +598,16 @@ class IncrementalLexerCF(object):
                 lastread = new
                 totalg += lengen
                 gen = it_gen.next()
-            elif totalr + getlength(read) <= totalg:            # DELETE OLD
+            elif totalr + getlength(read) <= totalg:
+                # Multiple nodes have been combined into less nodes. Delete old
+                # nodes until the lengths add up again.
                 read.remove()
                 self.remove_check(read)
                 totalr += getlength(read)
                 read = it_read.next()
-            else:                                               # UPDATE
+            else:
+                # Overwrite old nodes with updated values. Move nodes in or out
+                # of multinodes if needed.
                 totalr += getlength(read)
                 totalg += lengen
                 if not isinstance(read.symbol, MagicTerminal):
@@ -612,11 +618,18 @@ class IncrementalLexerCF(object):
                     read.lookup = gen[1]
                 if not current_mt:
                     if read.ismultichild():
+                        # Read node was previously part of a multinode but has
+                        # been updated to a normal node. Remove it from the
+                        # multinode.
                         read.remove()
                         self.remove_check(read)
                         lastread.insert_after(read)
                 else:
                     if not read.ismultichild() or current_mt is not read.parent.pnode:
+                        # Read node has been moved from a normal node into a
+                        # multinode or from one multinode into another
+                        # multinode. Remove from old locations and insert into
+                        # new location.
                         read.remove()
                         self.remove_check(read)
                         if current_mt.isempty():
