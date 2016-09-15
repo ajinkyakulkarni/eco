@@ -245,7 +245,6 @@ class AbstractLexingDFARunner(deterministic.DFARunner):
     def __iter__(self):
         return self
 
-from grammar_parser.gparser import MultiTerminal
 class LexingDFARunner(AbstractLexingDFARunner):
     def __init__(self, matcher, automaton, text, ignore, eof=False):
         AbstractLexingDFARunner.__init__(self, matcher, automaton, text, eof)
