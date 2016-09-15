@@ -23,7 +23,7 @@ from inclexer.inclexer import IncrementalLexer, StringWrapper
 from incparser.astree import AST
 from grammars.grammars import calc
 from incparser.astree import TextNode, BOS, EOS, MultiTextNode
-from grammar_parser.gparser import Terminal, Nonterminal, MagicTerminal, MultiTerminal
+from grammar_parser.gparser import Terminal, Nonterminal, MagicTerminal
 
 class Test_IncrementalLexer:
 
@@ -701,12 +701,12 @@ class Test_CalcLexer(Test_IncrementalLexer):
 
         lexer.relex(bos.next_term)
         assert bos.next_term == mk_multitextnode([Terminal("\"abc"), Terminal("\r"), Terminal("de"), Terminal("\r"), Terminal("f\"")])
-        # test if nodes within a MultiTerminal are reused
+        # test if nodes within a MultiTextNode are reused
         assert bos.next_term.children[0] is child0
         assert bos.next_term.children[1] is child1
         assert bos.next_term.children[2] is child2
 
-        assert bos.next_term is mt # reused the TextNode which contains the MultiTerminal
+        assert bos.next_term is mt # reused the MultiTextNode
 
     def test_multitoken_reuse2(self):
         lexer = IncrementalLexer("""
@@ -730,7 +730,6 @@ class Test_CalcLexer(Test_IncrementalLexer):
 
         lexer.relex(bos.next_term)
         assert bos.next_term == mk_multitextnode([Terminal("\"ab"), Terminal("\r"), Terminal("c"), Terminal("\r"), Terminal("def\"")])
-        # test if nodes within a MultiTerminal are reused
         assert bos.next_term.children[0] is child0
         assert bos.next_term.children[3] is child1
         assert bos.next_term.children[4] is child2
@@ -757,7 +756,6 @@ class Test_CalcLexer(Test_IncrementalLexer):
 
         lexer.relex(bos.next_term)
         assert bos.next_term == mk_multitextnode([Terminal("\"abc"), Terminal("\r"), Terminal("def\"")])
-        # test if nodes within a MultiTerminal are reused
         assert bos.next_term.children[0] is child0
         assert bos.next_term.children[1] is child1
         assert bos.next_term.children[2] is child2

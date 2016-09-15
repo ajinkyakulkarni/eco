@@ -20,7 +20,7 @@
 # IN THE SOFTWARE.
 
 import re
-from grammar_parser.gparser import Nonterminal, Terminal, IndentationTerminal, MultiTerminal
+from grammar_parser.gparser import Nonterminal, Terminal, IndentationTerminal
 from syntaxtable import FinishSymbol
 
 class AST(object):
@@ -298,36 +298,15 @@ class Node(object):
                 return
 
     def insert_after(self, node):
-        if isinstance(self.parent, MultiTerminal):
-            for i in xrange(len(self.parent.name)):
-                if self.parent.name[i] is self:
-                    self.parent.name.insert(i+1, node)
-                    node.parent = self.parent
-        else:
-            self.parent.insert_after_node(self, node)
+        self.parent.insert_after_node(self, node)
 
     def remove(self):
-        if isinstance(self.parent, MultiTerminal):
-            for i in range(len(self.parent.name)):
-                if self.parent.name[i] is self:
-                    self.parent.name.pop(i)
-                    return
-        else:
-            self.parent.remove_child(self)
-
-    def insert_at_beginning(self, node):
-        if isinstance(self.symbol, MultiTerminal):
-            self.symbol.name.insert(0, node)
-            node.parent = self.symbol
+        self.parent.remove_child(self)
 
     def replace(self, node):
         # XXX non optimal version
         self.insert_after(node)
         self.remove()
-
-    def isempty(self):
-        if isinstance(self.symbol, MultiTerminal):
-            return self.symbol.name == []
 
     def ismultichild(self):
         return isinstance(self.parent, MultiTextNode)
@@ -394,7 +373,7 @@ class Node(object):
     def next_terminal(self, skip_indent=False):
         n = self.next_term
         if not n:
-            if type(self.parent.symbol) is MultiTerminal:
+            if type(self.parent) is MultiTextNode:
                 return self.parent.next_term
         if skip_indent:
             while n is not None and isinstance(n.symbol, IndentationTerminal):
@@ -496,13 +475,11 @@ class TextNode(Node):
         self.log = {}
         self.version = 0
         self.indent = None
-        if isinstance(symbol, MultiTerminal):
-            symbol.pnode = self
 
     def prev_terminal(self):
         if self.prev_term:
             return self.prev_term
-        if type(self.parent.symbol) is MultiTerminal:
+        if type(self.parent) is MultiTextNode:
             return self.parent.prev_term
 
     def get_magicterminal(self):

@@ -20,7 +20,7 @@
 # IN THE SOFTWARE.
 
 from grammar_parser.plexer import PriorityLexer
-from grammar_parser.gparser import MagicTerminal, Terminal, IndentationTerminal, MultiTerminal
+from grammar_parser.gparser import MagicTerminal, Terminal, IndentationTerminal
 from incparser.astree import BOS, EOS, TextNode, ImageNode, MultiTextNode
 from PyQt4.QtGui import QImage
 import re, os
@@ -654,7 +654,7 @@ class IncrementalLexerCF(object):
             last_node = node
             node.indent = None
             if not isinstance(node.symbol, MagicTerminal):
-                if isinstance(t[0], MultiTerminal) or isinstance(node.symbol, MultiTerminal) or isinstance(t[0], MagicTerminal):
+                if isinstance(t[0], MagicTerminal):
                     node.symbol = t[0]
                 else:
                     node.symbol.name = t[0].name
@@ -669,8 +669,6 @@ class IncrementalLexerCF(object):
                 any_changes = True
             node.lookup = t[1]
             node.lookahead = t[0].lookahead
-            if isinstance(node.symbol, MultiTerminal):
-                node.symbol.link_children(node)
             if isinstance(node.symbol, MagicTerminal):
                 node.symbol.ast.magic_backpointer = node
         # delete left over nodes
