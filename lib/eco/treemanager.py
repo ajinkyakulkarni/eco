@@ -100,7 +100,6 @@ class Cursor(object):
             self.node = self.find_next_visible(self.node)
 
     def left(self):
-        print(self.node)
         node = self.node
         if not self.is_visible(node):
             node = self.find_previous_visible(self.node)
@@ -119,7 +118,6 @@ class Cursor(object):
             self.pos = len(node.symbol.name)
 
     def right(self):
-        print(self.node)
         node = self.node
         if not self.is_visible(node):
             node = self.find_next_visible(self.node)
@@ -1183,7 +1181,6 @@ class TreeManager(object):
         newnode.parent_lbox = root
         if not self.cursor.inside():
             node.insert_after(newnode)
-            print("insert lbox after")
             self.relex(newnode)
         else:
             node = node
@@ -1474,7 +1471,6 @@ class TreeManager(object):
 
         current = current.next_terminal()
         while current is not next:
-            print("current", current, next)
             if current.symbol.name == "\r":
                 y += 1
                 self.lines.insert(y, Line(current))
