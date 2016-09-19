@@ -821,12 +821,3 @@ def getlength(node):
     if isinstance(node, TextNode):
         return len(getname(node))
     return len(node)
-
-def lbox_finder(nodes):
-    for n in nodes:
-        if isinstance(n.symbol, MagicTerminal):
-            yield n.symbol
-        if isinstance(n.symbol.name, list): # multinode -> continue inside
-            for m in n.symbol.name:
-                if isinstance(m, MagicTerminal):
-                    yield m
